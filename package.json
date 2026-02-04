@@ -1,0 +1,36 @@
+{
+  "name": "pm2-eid-dashboard",
+  "version": "1.0.0",
+  "description": "PM2 EID Dashboard - Lightweight PM2 process management dashboard for Discord bots. Internal Sxnnyside Project / Core Red tooling.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "pm2:start": "pm2 start src/server.js --name pm2-eid-dashboard",
+    "pm2:stop": "pm2 stop pm2-eid-dashboard",
+    "pm2:restart": "pm2 restart pm2-eid-dashboard",
+    "pm2:logs": "pm2 logs pm2-eid-dashboard"
+  },
+  "keywords": [
+    "pm2",
+    "dashboard",
+    "discord",
+    "process-manager",
+    "internal-tools",
+    "sxnnyside-project",
+    "core-red"
+  ],
+  "author": "Sxnnyside Project - Core Red <houjou.sxnnyside@sxnnysideproject.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "Internal Sxnnyside Project repository"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "pm2": "^5.4.0"
+  }
+}

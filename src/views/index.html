@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PM2 EID Dashboard</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">PM2 <span class="accent">EID</span></h1>
+                <div class="header-meta">
+                    <span class="header-subtitle">Process Manager Dashboard</span>
+                    <span class="header-org">Core-Red Internal</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-refresh" 
+                        hx-get="/api/processes" 
+                        hx-target="#process-table" 
+                        hx-swap="innerHTML"
+                        hx-indicator="#loading-indicator">
+                    Refresh
+                </button>
+                <span id="loading-indicator" class="htmx-indicator">Loading...</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Process Table Section -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>Processes</h2>
+                    <div class="auto-refresh">
+                        <label>
+                            <input type="checkbox" id="auto-refresh-toggle" checked>
+                            Auto-refresh (10s)
+                        </label>
+                    </div>
+                </div>
+                <div id="process-table" 
+                     hx-get="/api/processes" 
+                     hx-trigger="load, every 10s [autoRefreshEnabled]"
+                     hx-swap="innerHTML">
+                    <div class="loading-state">
+                        <p>Loading processes...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Logs Section -->
+            <section class="section logs-section" id="logs-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Logs: <span id="logs-process-name">-</span></h2>
+                    <div class="logs-actions">
+                        <button class="btn btn-tab active" id="tab-stdout" onclick="switchLogTab('stdout')">
+                            stdout
+                        </button>
+                        <button class="btn btn-tab" id="tab-stderr" onclick="switchLogTab('stderr')">
+                            stderr
+                        </button>
+                        <button class="btn btn-secondary" onclick="refreshLogs()">
+                            Refresh Logs
+                        </button>
+                        <button class="btn btn-secondary" onclick="closeLogs()">
+                            Close
+                        </button>
+                    </div>
+                </div>
+                <div class="logs-container">
+                    <div id="logs-content" class="logs-content">
+                        <pre class="log-content">Select a process to view logs</pre>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <span>PM2 EID Dashboard v1.0.0</span>
+                <span class="separator">|</span>
+                <span>localhost:3847</span>
+                <span class="separator">|</span>
+                <span id="server-time"></span>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // State
+        let currentProcess = null;
+        let currentLogType = 'stdout';
+        let autoRefreshEnabled = true;
+
+        // Auto-refresh toggle
+        const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+        autoRefreshToggle.addEventListener('change', function() {
+            autoRefreshEnabled = this.checked;
+            window.autoRefreshEnabled = this.checked;
+        });
+
+        // Expose to HTMX
+        window.autoRefreshEnabled = true;
+
+        // Update server time
+        function updateServerTime() {
+            const now = new Date();
+            document.getElementById('server-time').textContent = now.toLocaleTimeString();
+        }
+        setInterval(updateServerTime, 1000);
+        updateServerTime();
+
+        // Show logs for a process
+        function showLogs(processName) {
+            currentProcess = processName;
+            document.getElementById('logs-process-name').textContent = processName;
+            document.getElementById('logs-section').style.display = 'block';
+            switchLogTab('stdout');
+            
+            // Scroll to logs section
+            document.getElementById('logs-section').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Switch between stdout and stderr
+        function switchLogTab(type) {
+            currentLogType = type;
+            
+            // Update tab buttons
+            document.getElementById('tab-stdout').classList.toggle('active', type === 'stdout');
+            document.getElementById('tab-stderr').classList.toggle('active', type === 'stderr');
+            
+            // Fetch logs
+            refreshLogs();
+        }
+
+        // Refresh current logs
+        function refreshLogs() {
+            if (!currentProcess) return;
+            
+            const endpoint = currentLogType === 'stderr' 
+                ? `/api/processes/${encodeURIComponent(currentProcess)}/errors`
+                : `/api/processes/${encodeURIComponent(currentProcess)}/logs`;
+            
+            htmx.ajax('GET', endpoint, {
+                target: '#logs-content',
+                swap: 'innerHTML'
+            });
+        }
+
+        // Close logs section
+        function closeLogs() {
+            document.getElementById('logs-section').style.display = 'none';
+            currentProcess = null;
+        }
+
+        // HTMX event handlers
+        document.body.addEventListener('htmx:beforeRequest', function(event) {
+            // Add loading state to buttons
+            if (event.target.tagName === 'BUTTON') {
+                event.target.classList.add('loading');
+            }
+        });
+
+        document.body.addEventListener('htmx:afterRequest', function(event) {
+            // Remove loading state from buttons
+            if (event.target.tagName === 'BUTTON') {
+                event.target.classList.remove('loading');
+            }
+        });
+
+        document.body.addEventListener('htmx:responseError', function(event) {
+            console.error('HTMX request failed:', event.detail);
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            // ESC to close logs
+            if (event.key === 'Escape') {
+                closeLogs();
+            }
+            // R to refresh (when not in input)
+            if (event.key === 'r' && !event.target.matches('input, textarea')) {
+                htmx.trigger('#process-table', 'htmx:trigger');
+            }
+        });
+    </script>
+</body>
+</html>
