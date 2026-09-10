@@ -1,0 +1,28 @@
+services:
+  pm2-eid-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pm2-eid-dashboard:latest
+    container_name: pm2-eid-dashboard
+    restart: unless-stopped
+    ports:
+      - "3847:3847"
+    environment:
+      - PORT=3847
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      # PM2 home directory inside container mapped to host
+      - PM2_HOME=/root/.pm2
+      # Optional: Basic Authentication (Uncomment to enable)
+      # - AUTH_USER=admin
+      # - AUTH_PASS=ChangeMePlease!
+      # Optional: Configurable Webhook notifications
+      # - WEBHOOK_URL=https://discord.com/api/webhooks/your-webhook-id/your-webhook-token
+      # - WEBHOOK_FORMAT=discord   # options: discord | slack | generic
+      # - WEBHOOK_EVENTS=restart,stop,exit,errored
+    volumes:
+      # Mount host PM2 daemon and sockets into the container
+      - ~/.pm2:/root/.pm2
+      # Optional: mount host logs if bots write outside PM2 log dir
+      # - /var/log:/var/log:ro

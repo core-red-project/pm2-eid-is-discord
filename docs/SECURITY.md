@@ -1,592 +1,118 @@
-# PM2 EID Dashboard - Security Documentation
+# PM2 EID — Security Architecture & Threat Model
 
-Security model, threat analysis, and mitigation strategies.
+**Version:** 2.0.0  
+**Division:** Core Red Project  
+**Organization:** Sxnnyside Project  
+**Contact:** legal.sxnnyside@sxnnysideproject.com / houjou.sxnnyside@sxnnysideproject.com
 
-**Organization:** Sxnnyside Project / Core Red  
-**Contact:** houjou.sxnnyside@sxnnysideproject.com
-
-For security-related inquiries, use the contact email above.
-
----
-
-## Security Model
-
-PM2 EID Dashboard uses a **network-based security model** rather than application-level authentication. Security is achieved through network isolation and access control at the transport layer.
-
-### Core Principles
-
-1. **Localhost binding**: Application only accepts connections from 127.0.0.1
-2. **SSH tunnel authentication**: Access control delegated to SSH
-3. **No public exposure**: Application is not accessible from external networks
-4. **Encryption via SSH**: Traffic is encrypted by the SSH tunnel, not HTTPS
-5. **Minimal attack surface**: No persistent storage, no user accounts, no sessions
+Comprehensive documentation of the security model, threat landscape, operational risks, and mitigation strategies for **PM2 EID**.
 
 ---
 
-## Threat Model
+## 1. Security Architecture
 
-### Assumed Threat Environment
-
-**In Scope:**
-- Unauthorized network access attempts
-- SSH credential compromise
-- Malicious localhost process interaction
-- PM2 API abuse
-- Cross-site scripting (XSS) in log output
-- Process manipulation by unauthorized users
-
-**Out of Scope:**
-- Physical server access (assumed secured)
-- Root/sudo compromise (game over scenario)
-- Supply chain attacks on npm dependencies (general Node.js risk)
-- Denial of service against the server itself
-
-### Trust Boundaries
+PM2 EID employs a defense-in-depth security model tailored for operational infrastructure tools:
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Trusted: Sxnnyside Project / Core Red Staff   │
-│  - Have SSH access to production servers        │
-│  - Authorized to manage PM2 processes           │
-│  - Known and authenticated                      │
-└─────────────────────────────────────────────────┘
-                      │
-                      │ SSH Authentication
-                      ▼
-┌─────────────────────────────────────────────────┐
-│       Production Server (Trust Boundary)        │
-│  ┌───────────────────────────────────────────┐  │
-│  │   PM2 EID Dashboard (127.0.0.1:3847)     │  │
-│  │   - Trusts all localhost connections     │  │
-│  │   - No application-level auth            │  │
-│  └───────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────┐
-│          Untrusted: Public Internet             │
-│  - Cannot reach localhost-bound services        │
-│  - Blocked by network configuration             │
-└─────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│               Public Internet / Untrusted              │
+└───────────────────────────┬────────────────────────────┘
+                            │ HTTPS (TLS 1.3 / Port 443)
+┌───────────────────────────▼────────────────────────────┐
+│      Reverse Proxy Layer (Coolify / Traefik / Nginx)   │
+│      - TLS Termination & Automated Certificates        │
+│      - Rate Limiting & Firewall / IP Allowlist         │
+└───────────────────────────┬────────────────────────────┘
+                            │ HTTP (Internal Bridge Network)
+┌───────────────────────────▼────────────────────────────┐
+│                  PM2 EID Container                     │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │   Authentication Middleware (Cookie Session)     │  │
+│  │   - SHA-256 Stateless Token Verification         │  │
+│  │   - HttpOnly + SameSite=Lax Cookie Protection    │  │
+│  └────────────────────────┬─────────────────────────┘  │
+│                           │ Authorized Requests        │
+│  ┌────────────────────────▼─────────────────────────┐  │
+│  │   Hono API & Ergonomic HTMX Presentation Engine  │  │
+│  │   - Strict Output HTML Escaping (Anti-XSS)       │  │
+│  │   - Non-native Dialog Confirmation Gate          │  │
+│  └────────────────────────┬─────────────────────────┘  │
+│                           │                            │
+│  ┌────────────────────────▼─────────────────────────┐  │
+│  │   Clean Architecture Core (Domain & Use Cases)   │  │
+│  │   - Path Normalization on Log Reads              │  │
+│  │   - Bounded Tail Readers (1 to 1000 lines)       │  │
+│  └────────────────────────┬─────────────────────────┘  │
+└───────────────────────────┼────────────────────────────┘
+                            │ Unix Domain Socket Mount
+┌───────────────────────────▼────────────────────────────┐
+│             Host Server PM2 Daemon                     │
+│  ~/.pm2/rpc.sock & ~/.pm2/pub.sock                     │
+└────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Security Controls
+## 2. Threat Analysis & Operational Risks
 
-### 1. Network Isolation
+### Risk 1: Unauthorized Process Control (Host Level Impact)
+- **Nature of Risk**: The PM2 programmatic API communicates with the daemon over local Unix domain sockets (`rpc.sock` and `pub.sock`). In Docker deployments, mounting `~/.pm2` into the container grants the container access to control host processes.
+- **Potential Impact**: If an unauthenticated attacker accesses PM2 EID, they could stop, restart, or delete critical processes running on the host system.
+- **Mitigation**:
+  1. **Enforce Strong Authentication**: Never leave `AUTH_USER` and `AUTH_PASS` unset in network environments. Use passwords with at least 16+ alphanumeric/special characters.
+  2. **Restrict Container Privileges**: Run the Docker container without `--privileged`. The container only requires read/write access to the specific PM2 socket directory.
+  3. **User Mapping**: Ensure the host PM2 daemon runs under an unprivileged system user (e.g. `node` or `apps`), not `root`.
 
-**Implementation:**
-```javascript
-// src/server.js
-const HOST = '127.0.0.1'; // Localhost only
-server.listen(PORT, HOST, () => { ... });
-```
+### Risk 2: Log Exfiltration & Secret Leakage
+- **Nature of Risk**: Applications supervised by PM2 (such as Discord bots, microservices, and web APIs) frequently log initialization messages or unhandled exceptions that may inadvertently expose environment variables, API tokens, database connection strings, or customer data.
+- **Potential Impact**: Exposure of third-party API credentials, bot tokens, or database access.
+- **Mitigation**:
+  1. **Strict Authentication Barrier**: Both HTML log drawers and raw JSON log endpoints (`/api/processes/:name/logs` and `/api/processes/:name/errors`) are strictly guarded behind authentication.
+  2. **Path Traversal Prevention**: Log paths are strictly retrieved from PM2's internal process descriptors (`pm_out_log_path` / `pm_err_log_path`). User-supplied parameters only specify process names, preventing arbitrary filesystem traversal.
+  3. **Application Hygiene**: Operators should configure applications to read secrets from environment variables rather than logging credentials.
 
-**What It Prevents:**
-- Direct external access to the dashboard
-- Port scanning from internet
-- Lateral movement from compromised external services
+### Risk 3: Public Internet Exposure without TLS
+- **Nature of Risk**: Binding PM2 EID directly to a public IP (`0.0.0.0`) without TLS exposes authentication cookies and credentials in cleartext over HTTP.
+- **Mitigation**:
+  1. **Mandatory Reverse Proxy**: In production, deploy behind Coolify (with Traefik) or Nginx/Caddy with TLS certificates managed via Let's Encrypt.
+  2. **Private Network Isolation**: If HTTPS is unavailable, bind `HOST=127.0.0.1` and access the dashboard solely through an encrypted SSH tunnel:
+     ```bash
+     ssh -L 3847:127.0.0.1:3847 user@server.com
+     ```
+  3. **VPN Access**: Use private overlay networks (such as Tailscale or WireGuard) to restrict dashboard access to authorized devices.
 
-**What It Doesn't Prevent:**
-- Access from other processes on the same server
-- Access via SSH tunnel (intended behavior)
-
-**Verification:**
-```bash
-# From server
-curl http://127.0.0.1:3847  # Works
-
-# From external machine (without SSH tunnel)
-curl http://server-ip:3847  # Connection refused
-```
-
----
-
-### 2. SSH Tunnel Authentication
-
-**Implementation:**
-```bash
-# User establishes tunnel
-ssh -L 3847:localhost:3847 user@server
-```
-
-**What It Prevents:**
-- Unauthorized access (requires valid SSH credentials)
-- Man-in-the-middle attacks (SSH encryption)
-- Credential interception (no plain-text authentication)
-
-**What It Doesn't Prevent:**
-- Access by anyone with valid SSH credentials
-- Compromised SSH keys
-
-**Best Practices:**
-- Use SSH key authentication only (disable password auth)
-- Implement fail2ban for brute force protection
-- Rotate SSH keys periodically
-- Audit SSH access logs regularly
+### Risk 4: Webhook Token Compromise & Spam Flooding
+- **Nature of Risk**: Discord and Slack webhook URLs contain authorization tokens. If exposed, bad actors can post arbitrary messages to your alert channels.
+- **Mitigation**:
+  1. Store `WEBHOOK_URL` securely in server environment files (`.env`).
+  2. PM2 EID bounds error message payloads to a maximum length (500–1000 characters) before dispatching to webhooks, preventing payload overflow and webhook abuse.
+  3. Use the `WEBHOOK_EVENTS` filter to notify only on critical anomalies (`errored,exit,restart`).
 
 ---
 
-### 3. Input Sanitization
+## 3. Implementation Security Checklist
 
-**Implementation:**
-```javascript
-// src/routes/processes.js
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-```
-
-**What It Prevents:**
-- Cross-site scripting (XSS) via process names
-- XSS via log file content
-- HTML injection in error messages
-
-**What It Doesn't Prevent:**
-- XSS in unescaped contexts (all contexts are escaped)
-
-**Coverage:**
-- Process names
-- Log output (stdout, stderr)
-- Error messages
-- All user-visible text from PM2 API
+| Control | Status | Description |
+| :--- | :--- | :--- |
+| **Authentication** | Built-in | Cookie sessions with `HttpOnly`, `SameSite=Lax`, and SHA-256 tokens |
+| **API Auth** | Built-in | Bearer token authorization supported on `/api/*` |
+| **Fail-Closed** | Built-in | Unauthenticated requests are denied immediately with 302 or 401 |
+| **XSS Prevention** | Built-in | Deterministic entity escaping on all user and process strings |
+| **Path Traversal** | Built-in | Normalized paths and strict descriptor boundary checks |
+| **Health Probes** | Isolated | `/health` is read-only and does not reveal processes or metrics |
+| **Network Security**| Operator | Enforce HTTPS via reverse proxy or SSH tunnel |
 
 ---
 
-### 4. HTMX Request Validation
+## 4. Reporting Security Vulnerabilities
 
-**Implementation:**
-```javascript
-// HTMX adds HX-Request header
-if (req.headers['hx-request']) {
-    // Return HTML partial
-} else {
-    // Return JSON
-}
-```
+If you discover a security vulnerability within PM2 EID, please disclose it responsibly:
 
-**What It Prevents:**
-- Unintended API usage
-- Direct browser navigation causing broken UI
+- **Email**: `legal.sxnnyside@sxnnysideproject.com`
+- **Security Advisory**: [GitHub Security Advisories](https://github.com/core-red-project/pm2-eid-is-discord/security/advisories/new)
 
-**What It Doesn't Prevent:**
-- API access (JSON endpoints remain available)
-- Header spoofing (not a security control, just routing)
+Please do not report security vulnerabilities through public GitHub issues.
 
 ---
 
-### 5. PM2 API Isolation
-
-**Implementation:**
-```javascript
-// src/pm2/client.js
-async function withConnection(operation) {
-    try {
-        await connect();
-        const result = await operation();
-        return result;
-    } finally {
-        disconnect();
-    }
-}
-```
-
-**What It Prevents:**
-- Stale PM2 connections
-- Connection leaks
-- Hanging operations (timeout protection)
-
-**What It Doesn't Prevent:**
-- PM2 API command injection (PM2 API is parameterized)
-
----
-
-## Threat Analysis
-
-### Threat: Unauthorized Network Access
-
-**Attack Vector:**  
-Attacker attempts to access dashboard from internet.
-
-**Likelihood:** Low  
-Dashboard is not exposed on external interfaces.
-
-**Impact:** High  
-If successful, attacker could control all PM2 processes.
-
-**Mitigation:**
-- Localhost binding (PRIMARY CONTROL)
-- Firewall rules blocking port 3847
-- No port forwarding configured
-
-**Residual Risk:** Minimal  
-Would require misconfiguration to expose service.
-
----
-
-### Threat: SSH Credential Compromise
-
-**Attack Vector:**  
-Attacker obtains valid SSH credentials via phishing, key theft, or brute force.
-
-**Likelihood:** Medium  
-SSH is a common attack target.
-
-**Impact:** Critical  
-Attacker gains full access to dashboard and server.
-
-**Mitigation:**
-- SSH key authentication only (disable passwords)
-- fail2ban for brute force protection
-- Key rotation policy
-- Audit logging
-
-**Residual Risk:** Medium  
-If SSH is compromised, dashboard is compromised. This is by design.
-
-**Note:** This is not a dashboard vulnerability. SSH security is foundational.
-
----
-
-### Threat: Malicious Localhost Process
-
-**Attack Vector:**  
-Attacker compromises another process on the server and uses it to access dashboard.
-
-**Likelihood:** Low  
-Requires prior server compromise.
-
-**Impact:** High  
-Attacker could manipulate PM2 processes.
-
-**Mitigation:**
-- Server hardening (outside dashboard scope)
-- Process isolation (containers, if applicable)
-- Audit logging (future feature)
-
-**Residual Risk:** Medium  
-Dashboard trusts all localhost connections.
-
-**Future Enhancement:**  
-Implement application-level authentication to prevent lateral movement.
-
----
-
-### Threat: Cross-Site Scripting (XSS)
-
-**Attack Vector:**  
-Attacker injects malicious JavaScript via process names or log output.
-
-**Likelihood:** Low  
-Requires ability to name processes or write to logs.
-
-**Impact:** Medium  
-Could execute JavaScript in administrator's browser.
-
-**Mitigation:**
-- HTML escaping on all output (PRIMARY CONTROL)
-- Content-Security-Policy headers (future)
-
-**Residual Risk:** Low  
-All text is escaped before rendering.
-
----
-
-### Threat: Process Manipulation
-
-**Attack Vector:**  
-Unauthorized user with dashboard access deletes critical processes.
-
-**Likelihood:** Medium  
-Human error or malicious insider.
-
-**Impact:** High  
-Production service disruption.
-
-**Mitigation:**
-- Confirmation dialogs for destructive actions
-- Audit logging (future feature)
-- Role-based access control (future feature)
-
-**Residual Risk:** Medium  
-Anyone with dashboard access can perform any action.
-
-**Future Enhancement:**  
-Implement read-only mode or action-specific permissions.
-
----
-
-### Threat: Denial of Service (DoS)
-
-**Attack Vector:**  
-Attacker floods dashboard with requests, causing resource exhaustion.
-
-**Likelihood:** Low  
-Requires localhost access or SSH tunnel.
-
-**Impact:** Low  
-Dashboard becomes unresponsive, PM2 processes unaffected.
-
-**Mitigation:**
-- Rate limiting (not implemented)
-- Request timeout configuration
-- PM2 process limits (system-level)
-
-**Residual Risk:** Medium  
-No rate limiting currently implemented.
-
-**Future Enhancement:**  
-Add rate limiting middleware for API endpoints.
-
----
-
-## Adding Authentication
-
-While not currently implemented, here is guidance for adding authentication if required.
-
-### Option 1: HTTP Basic Authentication
-
-**Pros:**
-- Simple to implement
-- No session management required
-- Supported by all browsers
-
-**Cons:**
-- Sends credentials with every request
-- No logout mechanism
-- Limited user management
-
-**Implementation:**
-
-```javascript
-// src/middleware/auth.js
-'use strict';
-
-const DASHBOARD_USER = process.env.DASHBOARD_USER || 'admin';
-const DASHBOARD_PASS = process.env.DASHBOARD_PASS || 'changeme';
-
-function basicAuth(req, res, next) {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Basic ')) {
-        res.setHeader('WWW-Authenticate', 'Basic realm="PM2 EID Dashboard"');
-        return res.status(401).send('Authentication required');
-    }
-    
-    const credentials = Buffer.from(authHeader.slice(6), 'base64').toString();
-    const [user, pass] = credentials.split(':');
-    
-    if (user === DASHBOARD_USER && pass === DASHBOARD_PASS) {
-        return next();
-    }
-    
-    res.setHeader('WWW-Authenticate', 'Basic realm="PM2 EID Dashboard"');
-    return res.status(401).send('Invalid credentials');
-}
-
-module.exports = basicAuth;
-```
-
-```javascript
-// src/server.js
-const basicAuth = require('./middleware/auth');
-app.use(basicAuth);
-```
-
-**Configuration:**
-```bash
-# .env
-DASHBOARD_USER=corered
-DASHBOARD_PASS=use-a-strong-password-here
-```
-
----
-
-### Option 2: Session-Based Authentication
-
-**Pros:**
-- Better user experience
-- Logout support
-- Can integrate with identity providers
-
-**Cons:**
-- Requires session store (Redis recommended)
-- More complex implementation
-- Introduces stateful behavior
-
-**Implementation:**
-
-Requires additional dependencies:
-```bash
-npm install express-session connect-redis redis
-```
-
-Not recommended unless SSO integration is required.
-
----
-
-### Option 3: SSH Key Validation
-
-**Pros:**
-- Reuses existing SSH authentication
-- No additional credentials
-- Consistent with SSH tunnel model
-
-**Cons:**
-- Complex to implement
-- Requires access to SSH metadata
-- May not work in all environments
-
-**Implementation:**
-
-Not recommended. SSH already provides authentication at transport layer.
-
----
-
-## Security Best Practices
-
-### Server Hardening
-
-1. **Firewall Configuration**
-   ```bash
-   # Allow only SSH
-   ufw allow 22/tcp
-   ufw enable
-   
-   # Do NOT allow 3847 externally
-   # (Dashboard is localhost-only by default)
-   ```
-
-2. **SSH Hardening**
-   ```bash
-   # /etc/ssh/sshd_config
-   PasswordAuthentication no
-   PermitRootLogin no
-   PubkeyAuthentication yes
-   ```
-
-3. **fail2ban Configuration**
-   ```bash
-   apt install fail2ban
-   systemctl enable fail2ban
-   ```
-
-### Application Hardening
-
-1. **Environment Variables**
-   - Never commit `.env` to version control
-   - Use strong, unique values in production
-   - Rotate credentials periodically
-
-2. **Dependency Management**
-   ```bash
-   # Audit dependencies regularly
-   npm audit
-   
-   # Update to patch vulnerabilities
-   npm audit fix
-   ```
-
-3. **Process Permissions**
-   ```bash
-   # Run dashboard as non-root user
-   sudo useradd -r -s /bin/false pm2-dashboard
-   
-   # Ensure PM2 processes run as same user
-   ```
-
----
-
-## Security Incident Response
-
-### If Dashboard Access is Compromised
-
-1. **Immediate Actions**
-   - Stop the dashboard: `pm2 stop pm2-eid-dashboard`
-   - Review PM2 process list for unauthorized changes
-   - Check SSH access logs: `grep sshd /var/log/auth.log`
-
-2. **Investigation**
-   - Identify compromised credentials
-   - Review PM2 logs: `~/.pm2/pm2.log`
-   - Check for unauthorized process deletions or restarts
-
-3. **Remediation**
-   - Rotate SSH keys
-   - Update dashboard configuration
-   - Restart dashboard: `pm2 restart pm2-eid-dashboard`
-   - Review and restore affected processes
-
-### If Server is Compromised
-
-Dashboard security is predicated on server security. If the server is compromised:
-
-1. Assume dashboard is compromised
-2. Follow organizational incident response plan
-3. Consider server rebuild rather than remediation
-4. Audit all processes managed by PM2
-
----
-
-## Security Roadmap
-
-Potential future security enhancements (not commitments):
-
-- [ ] Application-level authentication (Basic Auth)
-- [ ] Audit logging (who did what, when)
-- [ ] Rate limiting on API endpoints
-- [ ] Content-Security-Policy headers
-- [ ] Role-based access control (read-only users)
-- [ ] Action confirmation with secondary authentication
-- [ ] Integration with identity provider (LDAP, OAuth)
-- [ ] Security event notifications (process deletions, etc.)
-
----
-
-## Responsible Disclosure
-
-If you discover a security vulnerability in PM2 EID Dashboard:
-
-1. **Do not** disclose publicly until patched
-2. Email details to: houjou.sxnnyside@sxnnysideproject.com
-3. Include:
-   - Description of vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if available)
-
-We will respond within 48 hours and provide a remediation timeline.
-
----
-
-## Security Audit Checklist
-
-Use this checklist when deploying or auditing the dashboard:
-
-- [ ] Dashboard binds to 127.0.0.1 only
-- [ ] SSH is configured for key-only authentication
-- [ ] fail2ban is installed and active
-- [ ] Firewall blocks port 3847 from external networks
-- [ ] `.env` file is not committed to version control
-- [ ] Dependencies are up to date (`npm audit`)
-- [ ] Dashboard runs as non-root user
-- [ ] SSH access logs are monitored
-- [ ] Server is behind firewall with no public PM2 exposure
-- [ ] SSH keys are rotated according to policy
-
----
-
-## Contact
-
-For security-related questions or to report vulnerabilities:
-
-**Sxnnyside Project - Core Red**  
-houjou.sxnnyside@sxnnysideproject.com
-
-Include "SECURITY" in the email subject for priority handling.
+*PM2 EID is a Core Red Project. Part of the [Sxnnyside Project](https://sxnnysideproject.com).*

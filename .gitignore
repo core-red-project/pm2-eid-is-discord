@@ -25,3 +25,6 @@ Thumbs.db
 # Build artifacts (none expected, but just in case)
 dist/
 build/
+
+# Animoria cache & staged cleanup
+.animoria/
