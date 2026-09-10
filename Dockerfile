@@ -11,7 +11,7 @@ ENV PM2_HOME=/root/.pm2
 
 # Install dependencies first for efficient layer caching
 COPY package.json bun.lock* ./
-RUN bun install --production --frozen-lockfile || bun install --production
+RUN bun install --production --frozen-lockfile --ignore-scripts || bun install --production --ignore-scripts
 
 # Copy application source and assets
 COPY tsconfig.json ./

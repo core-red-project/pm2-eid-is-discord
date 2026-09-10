@@ -1,7 +1,7 @@
 {
   "name": "pm2-eid-dashboard",
   "version": "2.0.0",
-  "description": "PM2 EID Dashboard - Lightweight PM2 process management console for Discord bots and Node.js infrastructure. Developed by Core Red Project.",
+  "description": "PM2 EID Is Discord Dashboard - Lightweight PM2 process management console and supervisor. Developed by Core Red Project.",
   "main": "src/index.ts",
   "scripts": {
     "dev": "bun --watch src/index.ts",
@@ -13,7 +13,7 @@
     "format": "biome format --write src test",
     "check": "biome format --write src test && biome lint src test && tsc --noEmit && bun test",
     "clean": "rm -rf dist node_modules/.cache",
-    "prepare": "husky"
+    "prepare": "test -d .git && which husky >/dev/null 2>&1 && husky || true"
   },
   "keywords": [
     "pm2",
