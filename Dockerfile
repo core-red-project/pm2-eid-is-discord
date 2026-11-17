@@ -1,6 +1,6 @@
 # Production lightweight Dockerfile for Bun
-# Pinned to Bun 1.2 on Alpine Linux for deterministic and reproducible builds
-FROM oven/bun:1.2-alpine AS runner
+# Pinned to Bun 1.4.4 on Alpine Linux for deterministic and reproducible builds
+FROM oven/bun:1.4.4-alpine AS runner
 
 WORKDIR /app
 

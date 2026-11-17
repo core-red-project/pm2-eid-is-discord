@@ -81,7 +81,12 @@ jobs:
       - name: Publish Package with Provenance
         run: |
           npm install -g npm@11
-          npm publish --provenance --access public
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "@sxnnyside/pm2-eid-dashboard@${VERSION}" version >/dev/null 2>&1; then
+            echo "Version ${VERSION} already published on npm. Skipping duplicate publish."
+          else
+            npm publish --provenance --access public
+          fi
 
   publish-docker:
     name: Build & Publish Container
