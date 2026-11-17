@@ -1,5 +1,13 @@
+/**
+ * @fileoverview Lightweight request timing logger middleware for Hono.
+ * @module presentation/middlewares/logger
+ */
+
 import type { MiddlewareHandler } from 'hono';
 
+/**
+ * Middleware that logs HTTP method, path, response status, and duration in milliseconds.
+ */
 export const requestLogger: MiddlewareHandler = async (c, next) => {
   const start = performance.now();
   const method = c.req.method;

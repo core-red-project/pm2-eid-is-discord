@@ -43,8 +43,8 @@ There is no committee. Decisions are made by the maintainer.
 
 ## Scope
 
-This Code of Conduct applies to all project spaces: issues, pull requests, commit messages, and any other interaction tied to PM2 EID.
+This Code of Conduct applies to all project spaces: issues, pull requests, commit messages, and any other interaction tied to PM2 EID Dashboard.
 
 ---
 
-*PM2 EID is a Core Red Project. Part of the [Sxnnyside Project](https://sxnnysideproject.com).*
+*PM2 EID Dashboard — A Core Red Project. Part of the [Sxnnyside Project](https://sxnnysideproject.com) ecosystem.*

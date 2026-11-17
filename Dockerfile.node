@@ -1,0 +1,32 @@
+# Lightweight production Dockerfile for Node.js LTS
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+
+# Set production environment
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3847
+ENV PM2_HOME=/root/.pm2
+# Disable PM2 version check telemetry to version.pm2.io
+ENV PM2_DISABLE_VERSION_CHECK=1
+
+# Copy package manifest
+COPY package.json ./
+# Install production dependencies only
+RUN npm install --omit=dev --ignore-scripts
+
+# Copy production bundle and public assets
+COPY dist ./dist
+COPY public ./public
+
+# Expose HTTP port
+EXPOSE 3847
+
+# Healthcheck probe using Node.js native fetch
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD node -e "fetch('http://localhost:' + (process.env.PORT || 3847) + '/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+
+# Run PM2 EID Dashboard with Node.js
+CMD ["node", "dist/index.mjs"]
+

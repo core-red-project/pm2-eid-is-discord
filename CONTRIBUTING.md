@@ -1,4 +1,4 @@
-# Contributing to PM2 EID
+# Contributing to PM2 EID Dashboard
 
 Contributions are welcome — bugs, fixes, features, or documentation.
 This document covers how to work with the project as a contributor.
@@ -46,7 +46,7 @@ For larger features, an issue discussion first avoids wasted effort on both side
 
 Before submitting:
 
-- [ ] The project builds without errors
+- [ ] The project builds without errors (passes the same gate as CI — see `CLAUDE.md`)
 - [ ] Changes are described in [CHANGELOG.md](CHANGELOG.md) under `[Unreleased]`
 - [ ] The PR description explains what changed and why
 - [ ] New behavior is covered by tests where applicable
@@ -67,7 +67,7 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/en/
 Accepted types:
 
 | Type       | Use for                                          |
-|------------|--------------------------------------------------|
+|------------|---------------------------------------------------|
 | `feat`     | New functionality                                |
 | `fix`      | Bug fixes                                        |
 | `docs`     | Documentation only                               |
@@ -80,9 +80,9 @@ Accepted types:
 Examples:
 
 ```
-feat: add agnostic webhook payload formatter
-fix: prevent 404 error on missing favicon requests
-docs: update installation steps for Docker deployment
+feat: add offline fallback for config reads
+fix: prevent crash when scripts directory is missing
+docs: update installation steps for cross-compilation
 chore: bump dependencies to latest stable
 ```
 
@@ -96,4 +96,4 @@ If something in the codebase is unclear, open an issue with the `question` label
 
 ---
 
-*PM2 EID is a Core Red Project. Part of the [Sxnnyside Project](https://sxnnysideproject.com).*
+*PM2 EID Dashboard — A Core Red Project. Part of the [Sxnnyside Project](https://sxnnysideproject.com) ecosystem.*

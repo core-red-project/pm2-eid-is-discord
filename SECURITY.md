@@ -2,12 +2,12 @@
 
 ## Reporting a Vulnerability
 
-If you find a security vulnerability in **PM2 EID**, report it privately before disclosing it publicly.
+If you find a security vulnerability in **PM2 EID Dashboard**, report it privately before disclosing it publicly.
 
-**Preferred channel:**  
-Email — `legal.sxnnyside@sxnnysideproject.com`
+**Preferred channel:**
+Email — `security.sxnnyside@sxnnysideproject.com`
 
-**Alternative:**  
+**Alternative:**
 [GitHub Private Security Advisory](https://github.com/core-red-project/pm2-eid-is-discord/security/advisories/new)
 
 ---
@@ -44,9 +44,9 @@ Public disclosure is expected after a fix is available. If a fix isn't possible,
 
 ## Scope
 
-This policy covers the **PM2 EID** repository only.  
+This policy covers the **PM2 EID Dashboard** repository only.
 For ecosystem-wide security concerns, use the email above.
 
 ---
 
-*PM2 EID is a Core Red Project. Part of the [Sxnnyside Project](https://sxnnysideproject.com).*
+*PM2 EID Dashboard — A Core Red Project. Part of the [Sxnnyside Project](https://sxnnysideproject.com) ecosystem.*

@@ -1,22 +1,38 @@
 /**
- * Environment Configuration
- * Type-safe configuration with defaults
+ * @fileoverview Validated environment configuration with fallback defaults.
+ * @module infrastructure/config/env
  */
 
+/**
+ * Application configuration contract.
+ */
 export interface AppConfig {
+  /** HTTP server listening port */
   port: number;
+  /** Hostname or IP to bind the HTTP server */
   host: string;
+  /** Environment mode ('development', 'production', 'test') */
   env: string;
+  /** Optional custom PM2 home directory path */
   pm2Home: string | undefined;
+  /** Authentication configuration */
   auth: {
+    /** Whether credentials authentication is active */
     enabled: boolean;
-    user?: string;
-    pass?: string;
+    /** Administrative username */
+    user?: string | undefined;
+    /** Administrative password */
+    pass?: string | undefined;
   };
+  /** Outbound event webhook configuration */
   webhook: {
+    /** Whether event webhook dispatching is enabled */
     enabled: boolean;
-    url?: string;
+    /** Target HTTP webhook URL */
+    url?: string | undefined;
+    /** Payload serialization schema */
     format: 'generic' | 'discord' | 'slack';
+    /** Filtered lifecycle events to dispatch */
     events: string[];
   };
 }
@@ -48,9 +64,23 @@ const configuredEvents = process.env.WEBHOOK_EVENTS
   ? process.env.WEBHOOK_EVENTS.split(',').map((s) => s.trim().toLowerCase())
   : ['restart', 'stop', 'exit', 'errored', 'error'];
 
+const host = process.env.HOST || '127.0.0.1';
+const isLocalOnly = host === '127.0.0.1' || host === 'localhost' || host === '::1';
+const isTestEnv = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+
+if (!isLocalOnly && !(authUser && authPass) && !isTestEnv) {
+  throw new Error(
+    `[Security Error] Application bound to external interface '${host}' without authentication credentials. ` +
+      'You must set AUTH_USER and AUTH_PASS, or bind exclusively to 127.0.0.1 (HOST=127.0.0.1).',
+  );
+}
+
+/**
+ * Validated application configuration object.
+ */
 export const config: AppConfig = {
   port: Number.isNaN(envPort) ? 3847 : envPort,
-  host: process.env.HOST || '0.0.0.0',
+  host,
   env: process.env.NODE_ENV || 'development',
   pm2Home: process.env.PM2_HOME,
   auth: {

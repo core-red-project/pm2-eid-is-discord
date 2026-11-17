@@ -1,19 +1,46 @@
 {
-  "name": "pm2-eid-dashboard",
-  "version": "2.0.0",
+  "name": "@sxnnyside/pm2-eid-dashboard",
+  "version": "2.1.0",
   "description": "PM2 EID Is Discord Dashboard - Lightweight PM2 process management console and supervisor. Developed by Core Red Project.",
-  "main": "src/index.ts",
+  "type": "module",
+  "main": "dist/index.mjs",
+  "bin": {
+    "pm2-eid": "./dist/index.mjs",
+    "pm2-eid-dashboard": "./dist/index.mjs"
+  },
+  "files": [
+    "dist",
+    "public",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "bun@1.4.4",
+  "engines": {
+    "node": ">=20.0.0",
+    "bun": ">=1.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/core-red-project/pm2-eid-is-discord.git"
+  },
+  "homepage": "https://github.com/core-red-project/pm2-eid-is-discord#readme",
+  "bugs": "https://github.com/core-red-project/pm2-eid-is-discord/issues",
   "scripts": {
-    "dev": "bun --watch src/index.ts",
-    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.tsx",
     "build": "tsup",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint src test",
     "format": "biome format --write src test",
-    "check": "biome format --write src test && biome lint src test && tsc --noEmit && bun test",
+    "format:check": "biome format src test",
+    "check": "biome format src test && biome lint src test && tsc --noEmit && bun test",
     "clean": "rm -rf dist node_modules/.cache",
-    "prepare": "test -d .git && which husky >/dev/null 2>&1 && husky || true"
+    "prepare": "test -d .git && which husky >/dev/null 2>&1 && husky || true",
+    "prepublishOnly": "just check"
   },
   "keywords": [
     "pm2",
@@ -26,23 +53,24 @@
     "core-red",
     "sxnnyside-project"
   ],
-  "author": "Core Red Project <houjou.sxnnyside@sxnnysideproject.com>",
-  "license": "MIT",
+  "author": {
+    "name": "Core Red Project",
+    "url": "https://github.com/core-red-project"
+  },
+  "license": "AGPL-3.0",
   "dependencies": {
-    "hono": "^4.13.7",
-    "pm2": "^5.4.0"
+    "@hono/node-server": "^2.1.9",
+    "hono": "^4.13.19",
+    "pm2": "^7.1.2"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.13",
-    "@types/bun": "^1.4.2",
+    "@biomejs/biome": "^2.6.8",
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^26.6.6",
     "husky": "^9.1.7",
-    "lint-staged": "^17.5.1",
-    "tsup": "^8.5.1",
+    "tsup": "^9.0.0",
     "typescript": "^7.0.2"
-  },
-  "lint-staged": {
-    "*.{ts,js,json}": [
-      "biome check --write"
-    ]
   }
 }

@@ -7,16 +7,19 @@ services:
     container_name: pm2-eid-dashboard
     restart: unless-stopped
     ports:
-      - "3847:3847"
+      # Bound to localhost by default for security. Change to 3847:3847 only if behind a secure reverse proxy/VPN.
+      - "127.0.0.1:3847:3847"
     environment:
       - PORT=3847
       - HOST=0.0.0.0
       - NODE_ENV=production
       # PM2 home directory inside container mapped to host
       - PM2_HOME=/root/.pm2
-      # Optional: Basic Authentication (Uncomment to enable)
-      # - AUTH_USER=admin
-      # - AUTH_PASS=ChangeMePlease!
+      # Disable PM2 version check telemetry to version.pm2.io
+      - PM2_DISABLE_VERSION_CHECK=1
+      # Required when HOST=0.0.0.0: Set AUTH_PASS in .env before running docker compose
+      - AUTH_USER=${AUTH_USER:-admin}
+      - AUTH_PASS=${AUTH_PASS:?Set AUTH_PASS in .env before starting container}
       # Optional: Configurable Webhook notifications
       # - WEBHOOK_URL=https://discord.com/api/webhooks/your-webhook-id/your-webhook-token
       # - WEBHOOK_FORMAT=discord   # options: discord | slack | generic
